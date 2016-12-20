@@ -46,17 +46,18 @@ CONFIG = {
         }
     ],
     "tmpl": {
-        "install_chk_tmpl": "\t[ -f {src_bak} ] || mkdir -p {dest_dir}; cp {dest} {src_bak}\n",
-        "install_cp_tmpl": "\tcp {patch_src} {dest}\n",
-        "uninstall_chk_tmpl": "\t[ -f {src_bak} ] && mv {src_bak} {dest}\n",
-        "uninstall_rm_tmpl": "\trm -rf {dest}\n"
+        "install_chk_tmpl": "\t[ -f {dest_bak} ] || mkdir -p {dest_dir}; cp {dest} {dest_bak}\n",
+        "install_cp_tmpl": "\tcp {patch_src_rel} {dest}\n",
+        "install_rm_tmpl": "\trm -rf {dest}\n",
+        "uninstall_chk_tmpl": "\t[ -f {dest_bak} ] && mv {dest_bak} {dest}\n",
+        "uninstall_rm_tmpl": "\trm -rf {dest}\n",
     }
 }
 
 
 def get_name_status_ref(ref):
     p = subprocess.Popen(["git", "show", ref, "--name-status", "--format=format:"],
-            stdout=subprocess.PIPE)
+                         stdout=subprocess.PIPE)
     output, err = p.communicate()
     assert err is None
     return output
@@ -88,7 +89,7 @@ def preprocess_name_status(name_status_list):
             continue
         result.append((status, src))
     logger.debug("preprocess name status: locale: [{has_po}]"
-            .format(has_po=has_po))
+                 .format(has_po=has_po))
     if has_po:
         generate_locale()
         result.insert(0, ("M", "locale/en_US.mo"))
@@ -100,32 +101,31 @@ def generate_locale():
     logger.debug("generate locale files")
     os.chdir("locale")
     p = subprocess.Popen(["make"], stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE)
+                         stderr=subprocess.PIPE)
     output, err = p.communicate()
     os.chdir("..")
 
 
 def validate_status(name_status):
     status, src = name_status
-    assert status in CONFIG["status"],\
+    assert status in CONFIG["status"], \
         "status: [{status}] not supported".format(status=status)
 
 
 def prepare_patch_dir(name_status):
     status, src = name_status
-    patch_src = None
     if status == "M":
         patch_src = copy_files(src)
     elif status == "A":
         patch_src = copy_files(src)
     elif status == "D":
-        patch_src = src
+        patch_src = None
     return status, patch_src, src
 
 
 def copy_py(src, dest, is_compile):
     logger.debug("copy py: {src} -> {dest} [compile: {compile}]"
-            .format(src=src, dest=dest, compile=is_compile))
+                 .format(src=src, dest=dest, compile=is_compile))
     dirname = os.path.dirname(dest)
     if not os.path.exists(dirname):
         os.makedirs(dirname)
@@ -137,7 +137,7 @@ def copy_py(src, dest, is_compile):
 
 def copy_php(src, dest, is_screw):
     logger.debug("copy php: {src} -> {dest} [screw: {screw}]"
-            .format(src=src, dest=dest, screw=is_screw))
+                 .format(src=src, dest=dest, screw=is_screw))
     dirname = os.path.dirname(dest)
     if not os.path.exists(dirname):
         os.makedirs(dirname)
@@ -151,7 +151,7 @@ def copy_php(src, dest, is_screw):
 
 def copy_direct(src, dest):
     logger.debug("copy direct: {src} -> {dest}"
-            .format(src=src, dest=dest))
+                 .format(src=src, dest=dest))
     dirname = os.path.dirname(dest)
     if not os.path.exists(dirname):
         os.makedirs(dirname)
@@ -208,26 +208,41 @@ def matched_dir(src):
             return dir_patterns["path"]
     return None
 
-def generate_status_src_dest(status_patch_src):
+
+def generate_patch_vars(status_patch_src):
+    logger.debug("generate patch_vars: \n{data}"
+                 .format(data=status_patch_src))
     result = []
     for status, patch_src, src in status_patch_src:
-        dest = None
-        if status in ( "M", "A"):
-            dir_path = matched_dir(src)
-            assert dir_path, "not handled: {0}".format(status_patch_src)
-            _, _, sub_path = patch_src.split(os.path.sep, 2)
-            dest = os.path.join(dir_path, sub_path)
+        # patch_src_rel, dest_bak
+        if status in ("M", "A"):
+            patch_src_rel = patch_src[len(CONFIG["patch_dir"] + "/"):]
+            dest_bak = "{0}.bak".format(patch_src_rel)
         elif status == "D":
-            patch_src = src
-        result.append((status, patch_src, dest))
+            patch_src_rel = None
+            dest_bak = "{0}.bak".format(src)
+
+        # dest
+        dir_path = matched_dir(src)
+        assert dir_path, "not handled: {0}".format(status_patch_src)
+        # _, _, sub_path = src.split(os.path.sep, 2)
+        dest = os.path.join(dir_path, src)
+
+        # dest_dir
+        dest_dir = os.path.dirname(dest)
+
+        result.append((status, patch_src_rel, dest, dest_dir, dest_bak))
 
     return result
 
 
-def generate_makefile(status_src_dest):
+def generate_makefile(patch_vars):
+    """
+    patch_vars:  (status, patch_src_rel, dest, dest_dir, dest_bak)
+    """
     makefile_path = os.path.join(CONFIG["patch_dir"], "Makefile")
     logger.debug("generate makefile: {makefile_path}\n{data}"
-            .format(makefile_path=makefile_path,data=status_src_dest))
+                 .format(makefile_path=makefile_path, data=patch_vars))
 
     tmpl = CONFIG["tmpl"]
 
@@ -236,29 +251,34 @@ def generate_makefile(status_src_dest):
     uninstall_chk_lines = []
     uninstall_do_lines = []
     has_locale = False
-    for status, patch_src, dest in status_src_dest:
-        if os.path.splitext(patch_src)[1] == ".mo":
+    for status, patch_src, dest, dest_dir, dest_bak in patch_vars:
+        if os.path.splitext(dest)[1] == ".mo":
             has_locale = True
         context = {
-            "patch_src": patch_src,
+            "patch_src_rel": patch_src,
             "dest": dest,
-            "dest_dir": os.path.dirname(dest),
-            "src_bak": "{0}.bak".format(patch_src)
+            "dest_dir": dest_dir,
+            "dest_bak": dest_bak
         }
         if status == "A":
             install_do_lines.append(tmpl["install_cp_tmpl"]
-                    .format(**context))
+                                    .format(**context))
             uninstall_do_lines.append(tmpl["uninstall_rm_tmpl"]
-                    .format(**context))
+                                      .format(**context))
         elif status == "M":
             install_chk_lines.append(tmpl["install_chk_tmpl"]
-                    .format(**context))
+                                     .format(**context))
             install_do_lines.append(tmpl["install_cp_tmpl"]
-                    .format(**context))
+                                    .format(**context))
             uninstall_chk_lines.append(tmpl["uninstall_chk_tmpl"]
-                    .format(**context))
+                                       .format(**context))
         elif status == "D":
-            pass
+            install_chk_lines.append(tmpl["install_chk_tmpl"]
+                                     .format(**context))
+            install_chk_lines.append(tmpl["install_rm_tmpl"]
+                                     .format(**context))
+            uninstall_do_lines.append(tmpl["uninstall_chk_tmpl"]
+                                      .format(**context))
 
     with open(makefile_path, "w") as f:
         f.write("install:\n")
@@ -278,19 +298,21 @@ def generate_makefile(status_src_dest):
 def parse_args():
     parser = argparse.ArgumentParser(description="patch for backend")
     parser.add_argument("--ref", action="store", dest="ref",
-            help="ref in git", default="HEAD")
+                        help="ref in git", default="HEAD")
     parser.add_argument("--stdin", action="store_true",
-            help="name status from stdin")
+                        help="name status from stdin")
     return parser.parse_args()
 
 
-def clear_patch():
+def create_patch_dir():
     directory = CONFIG["patch_dir"]
-    if not os.path.isdir(directory):
+    if not os.path.exists(directory):
+        os.makedirs(directory)
         return
     logger.debug("clear old patch dir: [{directory}]"
-            .format(directory=directory))
+                 .format(directory=directory))
     shutil.rmtree(directory)
+    os.makedirs(directory)
 
 
 def patch():
@@ -298,10 +320,10 @@ def patch():
     from_stdin = CONFIG["arguments"].stdin
     ref = CONFIG["arguments"].ref
 
-    clear_patch()
+    create_patch_dir()
 
     name_status_list = preprocess_name_status(
-            get_name_status(from_stdin, ref))
+        get_name_status(from_stdin, ref))
     logger.debug(name_status_list)
 
     status_patch_src = []
@@ -309,10 +331,9 @@ def patch():
         validate_status(ns)
         status_patch_src.append(prepare_patch_dir(ns))
 
-    status_src_dest = generate_status_src_dest(status_patch_src)
-    generate_makefile(status_src_dest)
+    patch_vars = generate_patch_vars(status_patch_src)
+    generate_makefile(patch_vars)
 
 
 if __name__ == "__main__":
     patch()
-
