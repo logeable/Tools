@@ -33,7 +33,7 @@ CONFIG = {
             "patterns": [r"^doc/PGSQL"]
         },
         {
-            "path": "/usr/lib/python/2.6/site-packages/shterm/",
+            "path": "/usr/lib/python2.6/site-packages/shterm/",
             "patterns": [r"^python/"]
         },
         {
@@ -226,7 +226,7 @@ def generate_patch_vars(status_patch_src):
         dir_path = matched_dir(src)
         assert dir_path, "not handled: {0}".format(status_patch_src)
         # _, _, sub_path = src.split(os.path.sep, 2)
-        dest = os.path.join(dir_path, src)
+        dest = os.path.join(dir_path, patch_src_rel.split(os.sep, 1)[-1])
 
         # dest_dir
         dest_dir = os.path.dirname(dest)
