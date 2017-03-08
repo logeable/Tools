@@ -61,6 +61,11 @@ CONFIG = {
             "service": "shterm-healthd",
             "patterns": [r"^python/auth.py"],
             "policy": "restart"
+        },
+        {
+            "service": "shterm-permsrv",
+            "patterns": [r"^libexec/permsrv2"],
+            "policy": "restart"
         }
     ],
     "tmpl": {
