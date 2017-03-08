@@ -343,6 +343,8 @@ def parse_args():
                         help="ref in git", default="HEAD")
     parser.add_argument("--stdin", action="store_true",
                         help="name status from stdin")
+    parser.add_argument("--dir", action="store", dest="dir",
+                        help="patch dir", default="patch_dir")
     return parser.parse_args()
 
 
@@ -361,6 +363,7 @@ def patch():
     CONFIG["arguments"] = parse_args()
     from_stdin = CONFIG["arguments"].stdin
     ref = CONFIG["arguments"].ref
+    CONFIG["patch_dir"] = CONFIG["arguments"].dir
 
     create_patch_dir()
 
