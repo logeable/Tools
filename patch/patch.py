@@ -11,7 +11,7 @@ import re
 import json
 
 logger = logging.getLogger("patch3")
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 logger.addHandler(logging.StreamHandler())
 
 CONFIG = {
@@ -61,10 +61,16 @@ CONFIG = {
             "service": "shterm-healthd",
             "patterns": [r"^python/auth.py"],
             "policy": "restart"
+        },
+        {
+            "service": "shterm-permsrv",
+            "patterns": [r"^libexec/permsrv2"],
+            "policy": "restart"
         }
     ],
     "tmpl": {
-        "install_chk_tmpl": "\t[ -f {dest_bak} ] || mkdir -p {dest_dir}; cp {dest} {dest_bak}\n",
+        "install_chk_tmpl": "\t[ -f {dest_bak} ] ||\
+                mkdir -p {dest_dir}; cp {dest} {dest_bak}\n",
         "install_cp_tmpl": "\tcp {patch_src_rel} {dest}\n",
         "install_rm_tmpl": "\trm -rf {dest}\n",
         "uninstall_chk_tmpl": "\t[ -f {dest_bak} ] && mv {dest_bak} {dest}\n",
@@ -75,7 +81,8 @@ CONFIG = {
 
 
 def get_name_status_ref(ref):
-    p = subprocess.Popen(["git", "show", ref, "--name-status", "--format=format:"],
+    p = subprocess.Popen(
+            ["git", "show", ref, "--name-status", "--format=format:"],
             stdout=subprocess.PIPE)
     output, err = p.communicate()
     assert err is None
@@ -109,7 +116,7 @@ def preprocess_name_status(name_status_list):
             continue
         result.append((status, src))
     logger.debug("preprocess name status: locale: [{has_po}]"
-            .format(has_po=has_po))
+                 .format(has_po=has_po))
     if has_po:
         generate_locale()
         result.insert(0, ("M", "locale/en_US.mo"))
@@ -121,7 +128,7 @@ def generate_locale():
     logger.debug("generate locale files")
     os.chdir("locale")
     p = subprocess.Popen(["make"], stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE)
+                         stderr=subprocess.PIPE)
     output, err = p.communicate()
     os.chdir("..")
 
@@ -144,8 +151,8 @@ def prepare_patch_dir(name_status):
 
 
 def copy_py(src, dest, is_compile):
-    logger.debug("copy py: {src} -> {dest} [compile: {compile}]"
-            .format(src=src, dest=dest, compile=is_compile))
+    logger.info("copy py: {src} -> {dest} [compile: {compile}]"
+                 .format(src=src, dest=dest, compile=is_compile))
     dirname = os.path.dirname(dest)
     if not os.path.exists(dirname):
         os.makedirs(dirname)
@@ -156,13 +163,14 @@ def copy_py(src, dest, is_compile):
 
 
 def copy_php(src, dest, is_screw):
-    logger.debug("copy php: {src} -> {dest} [screw: {screw}]"
-            .format(src=src, dest=dest, screw=is_screw))
+    logger.info("copy php: {src} -> {dest} [screw: {screw}]"
+                 .format(src=src, dest=dest, screw=is_screw))
     dirname = os.path.dirname(dest)
     if not os.path.exists(dirname):
         os.makedirs(dirname)
     if is_screw:
-        p = subprocess.Popen([CONFIG["screw_php"], "-o", dest, src], stdout=subprocess.PIPE)
+        p = subprocess.Popen([CONFIG["screw_php"], "-o", dest, src],
+                             stdout=subprocess.PIPE)
         output, err = p.communicate()
         assert err is None
     else:
@@ -170,8 +178,8 @@ def copy_php(src, dest, is_screw):
 
 
 def copy_direct(src, dest):
-    logger.debug("copy direct: {src} -> {dest}"
-            .format(src=src, dest=dest))
+    logger.info("copy direct: {src} -> {dest}"
+                 .format(src=src, dest=dest))
     dirname = os.path.dirname(dest)
     if not os.path.exists(dirname):
         os.makedirs(dirname)
@@ -228,9 +236,10 @@ def matched_dir(src):
             return dir_patterns["path"]
     return None
 
+
 def generate_patch_vars(status_patch_src):
     logger.debug("generate patch_vars: \n{data}"
-            .format(data=json.dumps(status_patch_src, indent=4)))
+                 .format(data=json.dumps(status_patch_src, indent=4)))
     result = []
     for status, patch_src, src in status_patch_src:
         # patch_src_rel, dest_bak
@@ -240,14 +249,13 @@ def generate_patch_vars(status_patch_src):
         elif status == "D":
             patch_src_rel = None
             dest_bak = "{0}.bak".format(src)
-       
+
         # dest
         dir_path = matched_dir(src)
         assert dir_path, "not handled: {0}".format(status_patch_src)
-        #_, _, sub_path = src.split(os.path.sep, 2)
         dest = os.path.join(dir_path, patch_src_rel.split(os.sep, 1)[-1])
 
-        #dest_dir
+        # dest_dir
         dest_dir = os.path.dirname(dest)
 
         result.append((status, patch_src_rel, dest, dest_dir, dest_bak))
@@ -261,7 +269,8 @@ def generate_makefile(patch_vars):
     """
     makefile_path = os.path.join(CONFIG["patch_dir"], "Makefile")
     logger.debug("generate makefile: {makefile_path}\n{data}"
-            .format(makefile_path=makefile_path, data=json.dumps(patch_vars, indent=4)))
+                 .format(makefile_path=makefile_path,
+                         data=json.dumps(patch_vars, indent=4)))
 
     tmpl = CONFIG["tmpl"]
 
@@ -281,23 +290,23 @@ def generate_makefile(patch_vars):
 
         if status == "A":
             install_do_lines.append(tmpl["install_cp_tmpl"]
-                    .format(**context))
+                                    .format(**context))
             uninstall_do_lines.append(tmpl["uninstall_rm_tmpl"]
-                    .format(**context))
+                                      .format(**context))
         elif status == "M":
             install_chk_lines.append(tmpl["install_chk_tmpl"]
-                    .format(**context))
+                                     .format(**context))
             install_do_lines.append(tmpl["install_cp_tmpl"]
-                    .format(**context))
+                                    .format(**context))
             uninstall_chk_lines.append(tmpl["uninstall_chk_tmpl"]
-                    .format(**context))
+                                       .format(**context))
         elif status == "D":
             install_chk_lines.append(tmpl["install_chk_tmpl"]
-                    .format(**context))
+                                     .format(**context))
             install_chk_lines.append(tmpl["install_rm_tmpl"]
-                    .format(**context))
+                                     .format(**context))
             uninstall_do_lines.append(tmpl["uninstall_chk_tmpl"]
-                    .format(**context))
+                                      .format(**context))
 
         for sp in CONFIG["services_policy"]:
             service_context = {
@@ -311,9 +320,10 @@ def generate_makefile(patch_vars):
                     result = True
                     break
             if result:
-                install_services_lines.add(tmpl["service_tmpl"].format(**service_context))
-                uninstall_services_lines.add(tmpl["service_tmpl"].format(**service_context))
-
+                install_services_lines.add(
+                        tmpl["service_tmpl"].format(**service_context))
+                uninstall_services_lines.add(
+                        tmpl["service_tmpl"].format(**service_context))
 
     with open(makefile_path, "w") as f:
         f.write("install:\n")
@@ -331,9 +341,11 @@ def generate_makefile(patch_vars):
 def parse_args():
     parser = argparse.ArgumentParser(description="patch for backend")
     parser.add_argument("--ref", action="store", dest="ref",
-            help="ref in git", default="HEAD")
+                        help="ref in git", default="HEAD")
     parser.add_argument("--stdin", action="store_true",
-            help="name status from stdin")
+                        help="name status from stdin")
+    parser.add_argument("--dir", action="store", dest="dir",
+                        help="patch dir", default="patch_dir")
     return parser.parse_args()
 
 
@@ -343,7 +355,7 @@ def create_patch_dir():
         os.makedirs(directory)
         return
     logger.debug("clear old patch dir: [{directory}]"
-            .format(directory=directory))
+                 .format(directory=directory))
     shutil.rmtree(directory)
     os.makedirs(directory)
 
@@ -352,6 +364,7 @@ def patch():
     CONFIG["arguments"] = parse_args()
     from_stdin = CONFIG["arguments"].stdin
     ref = CONFIG["arguments"].ref
+    CONFIG["patch_dir"] = CONFIG["arguments"].dir
 
     create_patch_dir()
 
