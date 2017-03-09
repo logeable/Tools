@@ -91,6 +91,7 @@ def get_name_status(from_stdin, ref):
         output = get_name_status_stdin()
     else:
         output = get_name_status_ref(ref)
+    output = output.decode("utf-8")
     logger.debug(output)
 
     return [line.strip().split(None, 1)
