@@ -44,6 +44,10 @@ CONFIG = {
         {
             "path": "/var/www/shterm/",
             "patterns": [r"^web/"]
+        },
+        {
+            "path": "/usr/lib/shterm/",
+            "patterns": [r"^api/"]
         }
     ],
     "services_policy": [
@@ -314,12 +318,7 @@ def generate_makefile(patch_vars):
                 "policy": sp["policy"]
             }
 
-            result = False
-            for pattern in sp["patterns"]:
-                if re.match(pattern, patch_src):
-                    result = True
-                    break
-            if result:
+            if is_match(patch_src, sp["patterns"]):
                 install_services_lines.add(
                         tmpl["service_tmpl"].format(**service_context))
                 uninstall_services_lines.add(
