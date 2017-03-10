@@ -70,6 +70,11 @@ CONFIG = {
             "service": "shterm-permsrv",
             "patterns": [r"^libexec/permsrv2"],
             "policy": "restart"
+        },
+        {
+            "service": "uwsgi",
+            "patterns": [r"^api/"],
+            "policy": "restart"
         }
     ],
     "tmpl": {
