@@ -252,7 +252,7 @@ def generate_patch_vars(status_patch_src):
 
         # dest
         dir_path = matched_dir(src)
-        assert dir_path, "not handled: {0}".format(status_patch_src)
+        assert dir_path, "not handled: {0}".format(src)
         dest = os.path.join(dir_path, patch_src_rel.split(os.sep, 1)[-1])
 
         # dest_dir
