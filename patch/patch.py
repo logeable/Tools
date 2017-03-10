@@ -18,7 +18,7 @@ CONFIG = {
     "status": ["M", "A", "D"],
     "patch_dir": "patch_dir",
     "screw_php": "/home/logeable/backend/scripts/php-screw",
-    "compile_patterns": [r"^python"],
+    "compile_patterns": [r"^python/", r"^api/"],
     "screw_patterns": [r"^web"],
     "deploy_dirs": [
         {
@@ -46,7 +46,7 @@ CONFIG = {
             "patterns": [r"^web/"]
         },
         {
-            "path": "/usr/lib/shterm/",
+            "path": "/usr/lib/shterm/api/",
             "patterns": [r"^api/"]
         }
     ],
