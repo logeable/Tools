@@ -73,8 +73,9 @@ CONFIG = {
         }
     ],
     "tmpl": {
-        "install_chk_tmpl": "\t[ -f {dest_bak} ] ||\
-                mkdir -p {dest_dir}; cp {dest} {dest_bak}\n",
+        "install_chk_tmpl": ("\t[ -f {dest_bak} ] || " +
+                             "mkdir -p {dest_dir}; cp" +
+                             " {dest} {dest_bak}\n"),
         "install_cp_tmpl": "\tcp {patch_src_rel} {dest}\n",
         "install_rm_tmpl": "\trm -rf {dest}\n",
         "uninstall_chk_tmpl": "\t[ -f {dest_bak} ] && mv {dest_bak} {dest}\n",
