@@ -63,7 +63,7 @@ CONFIG = {
         },
         {
             "service": "shterm-healthd",
-            "patterns": [r"^python/auth.py"],
+            "patterns": [r"^python/auth.py", r"^libexec/permsrv"],
             "policy": "restart"
         },
         {
