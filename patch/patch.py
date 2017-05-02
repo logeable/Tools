@@ -329,6 +329,9 @@ def generate_makefile(patch_vars):
                         tmpl["service_tmpl"].format(**service_context))
                 uninstall_services_lines.add(
                         tmpl["service_tmpl"].format(**service_context))
+        if os.path.splitext(patch_src)[1] in (".js", ".css"):
+            install_services_lines.add("\tpython /usr/libexec/shterm/make_integrity\n")
+            uninstall_services_lines.add("\tpython /usr/libexec/shterm/make_integrity\n")
 
     with open(makefile_path, "w") as f:
         f.write("install:\n")
