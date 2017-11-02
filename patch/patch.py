@@ -20,6 +20,7 @@ CONFIG = {
     "screw_php": "/home/logeable/backend/scripts/php-screw",
     "compile_patterns": [r"^python/", r"^api/"],
     "screw_patterns": [r"^web"],
+    "src_ignore": [r"\.gitignore", r"releases"],
     "deploy_dirs": [
         {
             "path": "/usr/share/locale/en_US/LC_MESSAGES/",
@@ -32,6 +33,10 @@ CONFIG = {
         {
             "path": "/usr/share/shterm/",
             "patterns": [r"^doc/PGSQL"]
+        },
+        {
+            "path": "/usr/share/shterm/",
+            "patterns": [r"^share/shrdp-logon.glade"]
         },
         {
             "path": "/usr/lib/python2.6/site-packages/shterm/",
@@ -48,12 +53,16 @@ CONFIG = {
         {
             "path": "/usr/lib/shterm/api/",
             "patterns": [r"^api/"]
+        },
+        {
+            "path": "/usr/lib/shterm/",
+            "patterns": [r"^share/qwa-scripts"]
         }
     ],
     "services_policy": [
         {
             "service": "shterm-rdpextsrv",
-            "patterns": [r"^python/rdpextsrv"],
+            "patterns": [r"^python/rdpext"],
             "policy": "restart"
         },
         {
@@ -73,14 +82,14 @@ CONFIG = {
         },
         {
             "service": "uwsgi",
-            "patterns": [r"^api/"],
+            "patterns": [r"^api/", r"^python/db.py"],
             "policy": "restart"
         }
     ],
     "tmpl": {
-        "install_chk_tmpl": ("\t[ -f {dest_bak} ] || " +
-                             "mkdir -p {dest_dir}; cp" +
-                             " {dest} {dest_bak}\n"),
+        "install_chk_tmpl": ("\t[ ! -f {dest_bak} ] && " +
+                             "(mkdir -p {dest_dir}; cp" +
+                             " {dest} {dest_bak})\n"),
         "install_cp_tmpl": "\tcp {patch_src_rel} {dest}\n",
         "install_rm_tmpl": "\trm -rf {dest}\n",
         "uninstall_chk_tmpl": "\t[ -f {dest_bak} ] && mv {dest_bak} {dest}\n",
@@ -252,6 +261,8 @@ def generate_patch_vars(status_patch_src):
                  .format(data=json.dumps(status_patch_src, indent=4)))
     result = []
     for status, patch_src, src in status_patch_src:
+        if is_match(src, CONFIG["src_ignore"]):
+            continue    
         # patch_src_rel, dest_bak
         if status in ("M", "A"):
             patch_src_rel = patch_src[len(CONFIG["patch_dir"] + "/"):]
@@ -335,21 +346,25 @@ def generate_makefile(patch_vars):
 
     with open(makefile_path, "w") as f:
         f.write("install:\n")
+        f.write('\t@echo -e "\033[31;1m install begin \033[0m"\n')
         f.writelines(install_chk_lines)
         f.writelines(install_do_lines)
         f.writelines(install_services_lines)
-        f.write('\t@echo "install done"\n')
+        f.write('\t@echo -e "\033[32;1m install end \033[0m"\n')
         f.write("uninstall:\n")
+        f.write('\t@echo -e "\033[31;1m uninstall begin \033[0m"\n')
         f.writelines(uninstall_chk_lines)
         f.writelines(uninstall_do_lines)
         f.writelines(uninstall_services_lines)
-        f.write('\t@echo "uninstall done"\n')
+        f.write('\t@echo -e "\033[32;1m uninstall end \033[0m"\n')
 
 
 def parse_args():
     parser = argparse.ArgumentParser(description="patch for backend")
     parser.add_argument("--ref", action="store", dest="ref",
                         help="ref in git", default="HEAD")
+    parser.add_argument("--debug", action="store_true",
+                        help="find bug")
     parser.add_argument("--stdin", action="store_true",
                         help="name status from stdin")
     parser.add_argument("--dir", action="store", dest="dir",
@@ -372,6 +387,9 @@ def patch():
     CONFIG["arguments"] = parse_args()
     from_stdin = CONFIG["arguments"].stdin
     ref = CONFIG["arguments"].ref
+    if CONFIG["arguments"].debug:
+        logger.setLevel(logging.DEBUG)
+
     CONFIG["patch_dir"] = CONFIG["arguments"].dir
 
     create_patch_dir()
